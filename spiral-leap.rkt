@@ -45,7 +45,7 @@
               (pos -1/2 -1/2 -1/15)
               (pos 1/2 1/2 1/15)
               #:arc (arc 90 360))
-             (/ t 7))
+             (+ s 70))
    (cylinder (pos -1/3 -1/3 -4) (pos 1/8 1/8 2))
    
    ;; cevka 2
@@ -53,18 +53,28 @@
               (pos -1/2 -1/2 -16/15)
               (pos 1/2 1/2 -18/15)
               #:arc (arc 90 360))
-             (/ t 17))
+             (+ s 17))
    
    ;; cevka 3
    (rotate-z (pipe
               (pos -1/2 -1/2 10/15)
               (pos 1/2 1/2 8/15)
               #:arc (arc 90 360))
-             (/ t 3))
+             (+ s 173))
 
    ;; cilinder na sredini
    (cylinder (pos -1/3 -1/3 -4) (pos 1/8 1/8 2))
    
    lights+camera))
+
+(define (on-key s n t k)
+  (define move-unit 10)
+  (case k
+    [("left") (+ s move-unit)]
+    [("right") (- s move-unit)]
+    [else s]))
  
-(big-bang3d 0 #:on-draw on-draw)
+(big-bang3d
+ 0
+ #:on-key on-key
+ #:on-draw on-draw)
