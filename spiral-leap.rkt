@@ -12,15 +12,33 @@
   (combine (light (pos 0 1 2) (emitted "white" 10))
            (light (pos 0 -1 -2) (emitted "orange" 7))
            (basis 'camera (point-at (pos 1 1 1) origin))))
- 
+
+(define (easing-fn x)
+  ;; https://gist.github.com/gre/1650294
+  (* x (- 2 x)))
+
+(define (ball-position-z t)
+  (define jump-duration 1000)
+  ;; transform t+my jump-duration into a 0-1 number
+  (define jump-done-ratio
+    (/
+     (remainder (round t) jump-duration)
+     jump-duration))
+  ;; split the 0-1 range in two ranges (going up then down)
+  (if  (> jump-done-ratio 1/2)
+       ;; going up.. transform 0.5->1 into 0->1 then apply the easing fn
+       (easing-fn (* 2 (- jump-done-ratio 1/2)))
+       ;; going down.. transform 0->0.5 into 0->1 then 1->0 then apply the easing fn
+       (easing-fn (- 1 (* jump-done-ratio 2)))))
+
 (define (on-draw s n t)
   (combine
 
    ;; žoga
    (combine
     (with-color
-        (rgba "green" 0.5)
-      (move-z (sphere (pos 1/2 1/2 0) 1/15) (- (round t) t))))
+        (rgba "green" 1)
+      (move-z (sphere (pos 1/2 1/2 0) 1/15) (ball-position-z t))))
 
    ;; cevka 1
    (rotate-z (pipe
