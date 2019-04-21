@@ -38,7 +38,7 @@
    (combine
     (with-color
         (rgba "green" 1)
-      (move-z (sphere (pos 1/2 1/2 0) 1/15) (ball-position-z t))))
+      (move-z (sphere (pos 1/4 1/4 0) 1/15) (ball-position-z t))))
 
    ;; cevka 1
    (rotate-z (pipe
