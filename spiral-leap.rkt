@@ -6,6 +6,7 @@
 (require racket/gui)
 
 (define collision-sound "spin_jump-Brandino480-2020916281.wav")
+(define ball-x-y 1/4)
  
 (current-material (material #:ambient 0.01
                             #:diffuse 0.39
@@ -39,30 +40,31 @@
               ;; going down.. transform 0->0.5 into 0->1 then 1->0 then apply the easing fn
               (easing-fn (- 1 (* jump-done-ratio 2))))))
 
-(struct game-st (rotation ball-direction))
+(struct game-st (rotation ball-direction cur-pipe-surface))
 
-(define/match* (on-frame (game-st rot dir) n t)
+(define/match* (on-frame (game-st rot dir cur-p) n t)
   (define new-dir
     (if (> (jump-ratio t) .5)
         'up
         'down))
   (if (eq? new-dir dir)
-      (game-st rot dir)
+      (game-st rot dir cur-p)
       (if (eq? new-dir 'up)
-          (check-collision (game-st rot new-dir))
-          (game-st rot new-dir))))
+          (check-collision (game-st rot new-dir cur-p))
+          (game-st rot new-dir cur-p))))
 
-(define (check-collision st)
-  (play-sound collision-sound #t)
-  st)
+(define/match* (check-collision (game-st rot dir cur-p))
+  (when (trace (rotate-z cur-p rot) (pos ball-x-y ball-x-y 1) (pos ball-x-y ball-x-y -1))
+      (play-sound collision-sound #t))
+  (game-st rot dir cur-p))
 
 (struct pipe-info (rotation-offset) #:transparent)
 
 (define pipes
   (list
    (pipe-info 30)
-   (pipe-info 70)
-   (pipe-info 140)))
+   (pipe-info 140)
+   (pipe-info 70)))
 
 (define/match* (render-pipe (pipe-info offset) idx)
   ;; times 0.9 it looks nicer like that
@@ -73,14 +75,14 @@
              #:arc (arc 90 360))
             offset))
 
-(define/match* (on-draw (game-st rot _) n t)
+(define/match* (on-draw (game-st rot _ _) n t)
   (combine
 
    ;; žoga
    (combine
     (with-color
         (rgba "green" 1)
-      (move-z (sphere (pos 1/4 1/4 0) 1/15) (ball-position-z t))))
+      (move-z (sphere (pos ball-x-y ball-x-y 0) 1/15) (ball-position-z t))))
 
    (for/list ([pipe pipes]
               [idx (in-naturals)])
@@ -91,15 +93,15 @@
    
    lights+camera))
 
-(define/match* (on-key (game-st rot dir) n t k)
+(define/match* (on-key (game-st rot dir cur-p) n t k)
   (define move-unit 10)
   (case k
-    [("left") (game-st (+ rot move-unit) dir)]
-    [("right") (game-st (- rot move-unit) dir)]
-    [else (game-st rot dir)]))
+    [("left") (game-st (+ rot move-unit) dir cur-p)]
+    [("right") (game-st (- rot move-unit) dir cur-p)]
+    [else (game-st rot dir cur-p)]))
  
 (big-bang3d
- (game-st 0 'up)
+ (game-st 0 'up (render-pipe (second pipes) 1))
  #:on-frame on-frame
  #:on-key on-key
  #:on-draw on-draw)
