@@ -10,10 +10,12 @@
 (define pipe-interval 0.9)
 (define pipe-height 1/7)
 
-(current-material (material #:ambient 0.01
-                            #:diffuse 0.39
-                            #:specular 0.6
-                            #:roughness 0.2))
+(current-material
+ (material
+  #:ambient 0.01
+  #:diffuse 0.39
+  #:specular 0.6
+  #:roughness 0.2))
  
 (define (lights+camera ball-base-height)
   (combine (light (pos 0 1 2) (emitted "white" 10))
@@ -38,12 +40,15 @@
     (jump-ratio t))
   ;; split the 0-1 range in two ranges (going up then down)
   ;; then scale it down by 0.7 to fit between the pipes
-  (- (* 0.7 (if  (> jump-done-ratio 1/2)
-                 ;; going up.. transform 0.5->1 into 0->1 then apply the easing fn
-                 (easing-fn (* 2 (- jump-done-ratio 1/2)))
-                 ;; going down.. transform 0->0.5 into 0->1 then 1->0 then apply the easing fn
-                 (easing-fn (- 1 (* jump-done-ratio 2)))))
-     ball-base-height))
+  (-
+   (* 0.7
+      (if
+       (> jump-done-ratio 1/2)
+       ;; going up.. transform 0.5->1 into 0->1 then apply the easing fn
+       (easing-fn (* 2 (- jump-done-ratio 1/2)))
+       ;; going down.. transform 0->0.5 into 0->1 then 1->0 then apply the easing fn
+       (easing-fn (- 1 (* jump-done-ratio 2)))))
+   ball-base-height))
 
 (struct game-st (rotation ball-direction ball-base-height) #:transparent)
 
@@ -61,7 +66,9 @@
 (define/match* (check-collision (game-st rot dir ball-base-height))
   (define pipe-index
     (add1 (exact-round
-           (- (/ ball-base-height (+ pipe-interval pipe-height)) pipe-height))))
+           (-
+            (/ ball-base-height (+ pipe-interval pipe-height))
+            pipe-height))))
   (define pipe
     (list-ref pipes pipe-index))
   (define cur-p (render-pipe pipe pipe-index))
@@ -87,11 +94,12 @@
 
 (define/match* (render-pipe (pipe-info offset) idx)
   (define v-offset* (* (- idx 1) pipe-interval))
-  (rotate-z (pipe
-             (pos -1/2 -1/2 (- (- (/ pipe-height 2)) v-offset*))
-             (pos 1/2 1/2 (- (/ pipe-height 2) v-offset*))
-             #:arc (arc 90 360))
-            offset))
+  (rotate-z
+   (pipe
+    (pos -1/2 -1/2 (- (- (/ pipe-height 2)) v-offset*))
+    (pos 1/2 1/2 (- (/ pipe-height 2) v-offset*))
+    #:arc (arc 90 360))
+   offset))
 
 (define/match* (on-draw (game-st rot _ ball-base-height) n t)
   (combine
