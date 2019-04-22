@@ -7,7 +7,9 @@
 
 (define collision-sound "spin_jump-Brandino480-2020916281.wav")
 (define ball-x-y 1/4)
- 
+(define pipe-interval 0.9)
+(define pipe-height 1/7)
+
 (current-material (material #:ambient 0.01
                             #:diffuse 0.39
                             #:specular 0.6
@@ -29,18 +31,19 @@
    (remainder (round t) jump-duration)
    jump-duration))
 
-(define (ball-position-z t)
+(define (ball-position-z ball-base-height t)
   (define jump-done-ratio
     (jump-ratio t))
   ;; split the 0-1 range in two ranges (going up then down)
   ;; then scale it down by 0.7 to fit between the pipes
-  (* 0.7 (if  (> jump-done-ratio 1/2)
-              ;; going up.. transform 0.5->1 into 0->1 then apply the easing fn
-              (easing-fn (* 2 (- jump-done-ratio 1/2)))
-              ;; going down.. transform 0->0.5 into 0->1 then 1->0 then apply the easing fn
-              (easing-fn (- 1 (* jump-done-ratio 2))))))
+  (- (* 0.7 (if  (> jump-done-ratio 1/2)
+                 ;; going up.. transform 0.5->1 into 0->1 then apply the easing fn
+                 (easing-fn (* 2 (- jump-done-ratio 1/2)))
+                 ;; going down.. transform 0->0.5 into 0->1 then 1->0 then apply the easing fn
+                 (easing-fn (- 1 (* jump-done-ratio 2)))))
+     ball-base-height))
 
-(struct game-st (rotation ball-direction cur-pipe-surface))
+(struct game-st (rotation ball-direction ball-base-height) #:transparent)
 
 (define/match* (on-frame (game-st rot dir cur-p) n t)
   (define new-dir
@@ -53,10 +56,20 @@
           (check-collision (game-st rot new-dir cur-p))
           (game-st rot new-dir cur-p))))
 
-(define/match* (check-collision (game-st rot dir cur-p))
-  (when (trace (rotate-z cur-p rot) (pos ball-x-y ball-x-y 1) (pos ball-x-y ball-x-y -1))
-      (play-sound collision-sound #t))
-  (game-st rot dir cur-p))
+(define/match* (check-collision (game-st rot dir ball-base-height))
+  (define pipe-index
+    (add1 (exact-round
+           (- (/ ball-base-height (+ pipe-interval pipe-height)) pipe-height))))
+  (define pipe
+    (list-ref pipes pipe-index))
+  (define cur-p (render-pipe pipe pipe-index))
+  (if (trace (rotate-z cur-p rot)
+             (pos ball-x-y ball-x-y 1)
+             (pos ball-x-y ball-x-y -1))
+      (begin
+        (play-sound collision-sound #t)
+        (game-st rot dir ball-base-height))
+      (game-st rot 'free-fall (+ 0.1 ball-base-height))))
 
 (struct pipe-info (rotation-offset) #:transparent)
 
@@ -67,22 +80,21 @@
    (pipe-info 70)))
 
 (define/match* (render-pipe (pipe-info offset) idx)
-  ;; times 0.9 it looks nicer like that
-  (define v-offset* (* (- idx 1) .9))
+  (define v-offset* (* (- idx 1) pipe-interval))
   (rotate-z (pipe
-             (pos -1/2 -1/2 (- -1/15 v-offset*))
-             (pos 1/2 1/2 (- 1/15 v-offset*))
+             (pos -1/2 -1/2 (- (- (/ pipe-height 2)) v-offset*))
+             (pos 1/2 1/2 (- (/ pipe-height 2) v-offset*))
              #:arc (arc 90 360))
             offset))
 
-(define/match* (on-draw (game-st rot _ _) n t)
+(define/match* (on-draw (game-st rot _ ball-base-height) n t)
   (combine
 
    ;; žoga
    (combine
     (with-color
         (rgba "green" 1)
-      (move-z (sphere (pos ball-x-y ball-x-y 0) 1/15) (ball-position-z t))))
+      (move-z (sphere (pos ball-x-y ball-x-y 0) 1/15) (ball-position-z ball-base-height t))))
 
    (for/list ([pipe pipes]
               [idx (in-naturals)])
@@ -101,7 +113,7 @@
     [else (game-st rot dir cur-p)]))
  
 (big-bang3d
- (game-st 0 'up (render-pipe (second pipes) 1))
+ (game-st 0 'up 0)
  #:on-frame on-frame
  #:on-key on-key
  #:on-draw on-draw)
