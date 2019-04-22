@@ -66,8 +66,8 @@
     (list-ref pipes pipe-index))
   (define cur-p (render-pipe pipe pipe-index))
   (if (trace (rotate-z cur-p rot)
-             (pos ball-x-y ball-x-y 1)
-             (pos ball-x-y ball-x-y -1))
+             (pos ball-x-y ball-x-y (- 1 ball-base-height))
+             (pos ball-x-y ball-x-y (- -1 ball-base-height)))
       (begin
         (play-sound collision-sound #t)
         (game-st rot dir ball-base-height))
@@ -79,7 +79,11 @@
   (list
    (pipe-info 30)
    (pipe-info 140)
-   (pipe-info 70)))
+   (pipe-info 70)
+   (pipe-info 170)
+   (pipe-info 20)
+   (pipe-info 50)
+   (pipe-info 250)))
 
 (define/match* (render-pipe (pipe-info offset) idx)
   (define v-offset* (* (- idx 1) pipe-interval))
@@ -106,7 +110,7 @@
      (rotate-z (render-pipe pipe idx) rot))
 
    ;; cilinder na sredini
-   (cylinder (pos -1/3 -1/3 -4) (pos 1/8 1/8 2))
+   (cylinder (pos -1/3 -1/3 -10) (pos 1/8 1/8 2))
    
    (lights+camera ball-base-height)))
 
