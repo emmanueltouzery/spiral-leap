@@ -15,10 +15,12 @@
                             #:specular 0.6
                             #:roughness 0.2))
  
-(define lights+camera
+(define (lights+camera ball-base-height)
   (combine (light (pos 0 1 2) (emitted "white" 10))
            (light (pos 0 -1 -2) (emitted "orange" 7))
-           (basis 'camera (point-at (pos 1 1 .7) origin))))
+           (basis 'camera
+                  (point-at (pos 1 1 (- .7 ball-base-height))
+                            (pos 0 0 (- ball-base-height))))))
 
 (define (easing-fn x)
   ;; https://gist.github.com/gre/1650294
@@ -94,7 +96,10 @@
    (combine
     (with-color
         (rgba "green" 1)
-      (move-z (sphere (pos ball-x-y ball-x-y 0) 1/15) (ball-position-z ball-base-height t))))
+      (move-z
+       (sphere
+        (pos ball-x-y ball-x-y 0) 1/15)
+       (ball-position-z ball-base-height t))))
 
    (for/list ([pipe pipes]
               [idx (in-naturals)])
@@ -103,7 +108,7 @@
    ;; cilinder na sredini
    (cylinder (pos -1/3 -1/3 -4) (pos 1/8 1/8 2))
    
-   lights+camera))
+   (lights+camera ball-base-height)))
 
 (define/match* (on-key (game-st rot dir cur-p) n t k)
   (define move-unit 10)
