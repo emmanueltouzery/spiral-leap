@@ -13,7 +13,7 @@
 (define bounce-speed 0.8)
 (define gravity-acceleration-constant -0.5)
 
-(struct pos-checkpoint-info (speed z time))
+(struct pos-checkpoint-info (speed z time) #:transparent)
 (struct game-st (rotation pos-cp-info) #:transparent)
 
 (current-material
@@ -23,17 +23,32 @@
   #:specular 0.6
   #:roughness 0.2))
 
-(struct pipe-info (rotation-offset) #:transparent)
+(struct pipe-section (start end) #:transparent)
+(struct pipe-info (normal-sections killer-sections) #:transparent)
 
 (define pipes
   (list
-   (pipe-info 100)
-   (pipe-info 140)
-   (pipe-info 70)
-   (pipe-info 170)
-   (pipe-info 20)
-   (pipe-info 50)
-   (pipe-info 250)))
+   (pipe-info
+    (list (pipe-section 70 120))
+    (list (pipe-section 40 60) (pipe-section 140 160)))
+   (pipe-info
+    (list (pipe-section 90 160))
+    (list))
+   (pipe-info
+    (list (pipe-section 40 90))
+    (list))
+   (pipe-info
+    (list (pipe-section 20 60))
+    (list))
+   (pipe-info
+    (list (pipe-section 70 100))
+    (list))
+   (pipe-info
+    (list (pipe-section 0 40))
+    (list))
+   (pipe-info
+    (list (pipe-section 80 130))
+    (list))))
  
 (define (lights+camera ball-base-height)
   (combine (light (pos 0 1 2) (emitted "white" 10))
@@ -69,14 +84,26 @@
         (game-st rot (pos-checkpoint-info bounce-speed ball-z t))) 
       input-st))
 
-(define/match* (render-pipe (pipe-info offset) idx)
+(define (render-pipe-section color v-offset* arc-a arc-b)
+  (with-color color
+    (pipe
+     (pos -1/2 -1/2 (- (- (/ pipe-height 2)) v-offset*))
+     (pos 1/2 1/2 (- (/ pipe-height 2) v-offset*))
+     #:arc (arc arc-a arc-b))))
+
+(define/match* (render-pipe (pipe-info normal-sections killer-sections) idx)
   (define v-offset* (* idx (+ pipe-interval (/ pipe-height 2))))
-  (rotate-z
-   (pipe
-    (pos -1/2 -1/2 (- (- (/ pipe-height 2)) v-offset*))
-    (pos 1/2 1/2 (- (/ pipe-height 2) v-offset*))
-    #:arc (arc 90 360))
-   offset))
+   (combine
+    (for/list ([normal-section normal-sections])
+      (render-pipe-section (rgba "white" 1) v-offset*
+                           (pipe-section-start normal-section)
+                           (pipe-section-end normal-section)))
+
+    ;; TODO copy-paste
+    (for/list ([killer-section killer-sections])
+      (render-pipe-section (rgba "red" 1) v-offset*
+                           (pipe-section-start killer-section)
+                           (pipe-section-end killer-section)))))
 
 (define/match* (on-draw (game-st rot pos-cp-info) n t)
   (define ball-z (get-ball-z pos-cp-info t))
