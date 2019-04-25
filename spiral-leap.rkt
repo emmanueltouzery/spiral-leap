@@ -9,6 +9,12 @@
 (define ball-x-y 1/4)
 (define pipe-interval 0.9)
 (define pipe-height 1/7)
+(define ball-radius 1/15)
+(define bounce-speed 0.8)
+(define gravity-acceleration-constant -0.5)
+
+(struct pos-checkpoint-info (speed z time))
+(struct game-st (rotation pos-cp-info) #:transparent)
 
 (current-material
  (material
@@ -16,84 +22,54 @@
   #:diffuse 0.39
   #:specular 0.6
   #:roughness 0.2))
- 
-(define (lights+camera ball-base-height)
-  (combine (light (pos 0 1 2) (emitted "white" 10))
-           (light (pos 0 -1 -2) (emitted "orange" 7))
-           (basis 'camera
-                  (point-at (pos 1 1 (- .7 ball-base-height))
-                            (pos 0 0 (- ball-base-height))))))
-
-(define (easing-fn x)
-  ;; https://gist.github.com/gre/1650294
-  (* x (- 2 x)))
-
-;; transform t+my jump-duration into a 0-1 number
-(define (jump-ratio t)
-  (define jump-duration 1000)
-  (/
-   (remainder (round t) jump-duration)
-   jump-duration))
-
-(define (ball-position-z ball-base-height t)
-  (define jump-done-ratio
-    (jump-ratio t))
-  ;; split the 0-1 range in two ranges (going up then down)
-  ;; then scale it down by 0.7 to fit between the pipes
-  (-
-   (* 0.7
-      (if
-       (> jump-done-ratio 1/2)
-       ;; going up.. transform 0.5->1 into 0->1 then apply the easing fn
-       (easing-fn (* 2 (- jump-done-ratio 1/2)))
-       ;; going down.. transform 0->0.5 into 0->1 then 1->0 then apply the easing fn
-       (easing-fn (- 1 (* jump-done-ratio 2)))))
-   ball-base-height))
-
-(struct game-st (rotation ball-direction ball-base-height) #:transparent)
-
-(define/match* (on-frame (game-st rot dir cur-p) n t)
-  (define new-dir
-    (if (> (jump-ratio t) .5)
-        'up
-        'down))
-  (if (eq? new-dir dir)
-      (game-st rot dir cur-p)
-      (if (eq? new-dir 'up)
-          (check-collision (game-st rot new-dir cur-p))
-          (game-st rot new-dir cur-p))))
-
-(define/match* (check-collision (game-st rot dir ball-base-height))
-  (define pipe-index
-    (add1 (exact-round
-           (-
-            (/ ball-base-height (+ pipe-interval pipe-height))
-            pipe-height))))
-  (define pipe
-    (list-ref pipes pipe-index))
-  (define cur-p (render-pipe pipe pipe-index))
-  (if (trace (rotate-z cur-p rot)
-             (pos ball-x-y ball-x-y (- 1 ball-base-height))
-             (pos ball-x-y ball-x-y (- -1 ball-base-height)))
-      (begin
-        (play-sound collision-sound #t)
-        (game-st rot dir ball-base-height))
-      (game-st rot 'free-fall (+ 0.1 ball-base-height))))
 
 (struct pipe-info (rotation-offset) #:transparent)
 
 (define pipes
   (list
-   (pipe-info 30)
+   (pipe-info 100)
    (pipe-info 140)
    (pipe-info 70)
    (pipe-info 170)
    (pipe-info 20)
    (pipe-info 50)
    (pipe-info 250)))
+ 
+(define (lights+camera ball-base-height)
+  (combine (light (pos 0 1 2) (emitted "white" 10))
+           (light (pos 0 -1 -2) (emitted "orange" 7))
+           (basis 'camera
+                  (point-at (pos 1 1 (+ ball-base-height .7))
+                            (pos 0 0 ball-base-height)))))
+
+(define/match* (get-ball-z (pos-checkpoint-info cp-speed cp-z cp-time) t)
+  (define time-diff (/ (- t cp-time) 1000))
+  (+ cp-z (* gravity-acceleration-constant time-diff time-diff) (* cp-speed time-diff)))
+
+(define/match* (on-frame (game-st rot pos-cp-info) n t)
+  (define ball-z (get-ball-z pos-cp-info t))
+  (define pipe-index
+    (exact-round
+     (-
+      pipe-height
+      (/ ball-z (+ pipe-interval pipe-height)))))
+  (if (<= 0 pipe-index (sub1 (length pipes)))
+      (check-collision (list-ref pipes pipe-index) pipe-index pos-cp-info rot ball-z t)
+      (game-st rot pos-cp-info)))
+
+;; too many parameters
+(define (check-collision pipe pipe-index pos-cp-info rot ball-z t)
+  (define cur-p (render-pipe pipe pipe-index))
+  (if (trace (rotate-z cur-p rot)
+             (pos ball-x-y ball-x-y ball-z)
+             (pos ball-x-y ball-x-y (- ball-z 0.05)))
+      (begin
+        (play-sound collision-sound #t)
+        (game-st rot (pos-checkpoint-info bounce-speed ball-z t))) 
+      (game-st rot pos-cp-info)))
 
 (define/match* (render-pipe (pipe-info offset) idx)
-  (define v-offset* (* (- idx 1) pipe-interval))
+  (define v-offset* (* idx (+ pipe-interval (/ pipe-height 2))))
   (rotate-z
    (pipe
     (pos -1/2 -1/2 (- (- (/ pipe-height 2)) v-offset*))
@@ -101,17 +77,17 @@
     #:arc (arc 90 360))
    offset))
 
-(define/match* (on-draw (game-st rot _ ball-base-height) n t)
+(define/match* (on-draw (game-st rot pos-cp-info) n t)
+  (define ball-z (get-ball-z pos-cp-info t))
+  
   (combine
 
    ;; žoga
    (combine
     (with-color
         (rgba "green" 1)
-      (move-z
-       (sphere
-        (pos ball-x-y ball-x-y 0) 1/15)
-       (ball-position-z ball-base-height t))))
+      (sphere
+       (pos ball-x-y ball-x-y ball-z) ball-radius)))
 
    (for/list ([pipe pipes]
               [idx (in-naturals)])
@@ -120,17 +96,17 @@
    ;; cilinder na sredini
    (cylinder (pos -1/3 -1/3 -10) (pos 1/8 1/8 2))
    
-   (lights+camera ball-base-height)))
+   (lights+camera ball-z)))
 
-(define/match* (on-key (game-st rot dir cur-p) n t k)
+(define/match* (on-key (game-st rot pos-cp-info) n t k)
   (define move-unit 10)
   (case k
-    [("left") (game-st (+ rot move-unit) dir cur-p)]
-    [("right") (game-st (- rot move-unit) dir cur-p)]
-    [else (game-st rot dir cur-p)]))
+    [("left") (game-st (+ rot move-unit) pos-cp-info)]
+    [("right") (game-st (- rot move-unit) pos-cp-info)]
+    [else (game-st rot pos-cp-info)]))
  
 (big-bang3d
- (game-st 0 'up 0)
+ (game-st 0 (pos-checkpoint-info bounce-speed 0 0))
  #:on-frame on-frame
  #:on-key on-key
  #:on-draw on-draw)
