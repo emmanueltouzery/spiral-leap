@@ -48,17 +48,18 @@
 
 (define/match* (on-frame (game-st rot pos-cp-info) n t)
   (define ball-z (get-ball-z pos-cp-info t))
+  (define input-st (game-st rot pos-cp-info))
   (define pipe-index
     (exact-round
      (-
       pipe-height
       (/ ball-z (+ pipe-interval pipe-height)))))
   (if (<= 0 pipe-index (sub1 (length pipes)))
-      (check-collision (list-ref pipes pipe-index) pipe-index pos-cp-info rot ball-z t)
-      (game-st rot pos-cp-info)))
+      (check-collision pipe-index input-st rot ball-z t)
+      input-st))
 
-;; too many parameters
-(define (check-collision pipe pipe-index pos-cp-info rot ball-z t)
+(define (check-collision pipe-index input-st rot ball-z t)
+  (define pipe (list-ref pipes pipe-index) )
   (define cur-p (render-pipe pipe pipe-index))
   (if (trace (rotate-z cur-p rot)
              (pos ball-x-y ball-x-y ball-z)
@@ -66,7 +67,7 @@
       (begin
         (play-sound collision-sound #t)
         (game-st rot (pos-checkpoint-info bounce-speed ball-z t))) 
-      (game-st rot pos-cp-info)))
+      input-st))
 
 (define/match* (render-pipe (pipe-info offset) idx)
   (define v-offset* (* idx (+ pipe-interval (/ pipe-height 2))))
